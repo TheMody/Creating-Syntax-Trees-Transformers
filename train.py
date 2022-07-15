@@ -67,6 +67,8 @@ def train(args, config):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = model.to(device)
     X_train, X_val, X_test, Y_train, Y_val, Y_test = load_data(name=dataset)
+
+    model.generate_tree([X_train[2]])
     # print("analyzing", dataset)
     # torch.save(calculate_word_freq(X_train, model.tokenizer), config["DEFAULT"]["directory"]+"/baseword_freq.pt")
 

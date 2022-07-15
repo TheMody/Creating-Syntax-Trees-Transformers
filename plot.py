@@ -130,6 +130,12 @@ def plot_TSNE_clustering(X,y = None):
     plt.show()
     
 if __name__ == '__main__': 
+    from ete3 import Tree
+    t = Tree( "((a,b),c);" )
+    t.show()
+
+
+
     pretrained = torch.load("results/sst2/pretrained.pt")
     afterfine = torch.load("results/sst2/afterfine.pt")
     word_freq = torch.load("results/sst2/baseword_freq.pt")

@@ -16,6 +16,7 @@ from data import load_wiki
 import os
 from transformers import BertTokenizer, BertForMaskedLM
 logging.set_verbosity_error()
+from ete3 import  TreeStyle, Tree, TextFace, add_face_to_node
 
 models = ['bert-base-uncased',
          'google/electra-small-discriminator',
@@ -54,7 +55,17 @@ class CosineScheduler(optim.lr_scheduler._LRScheduler):
         lr_factor = 0.5 * (1 + np.cos(np.pi * epoch / self.max_num_iters))
         return lr_factor
 
+# class Tree():
+#     def __init__(self, token, children = []):
+#         self.token = None
+#         self.children = children
 
+#     def is_final(self):
+#         return len(self.children == 0)
+    
+#     def add_children(self,children):
+#         for c in children:
+#             self.children.append(c)
     
 
 
@@ -147,6 +158,54 @@ class NLP_embedder(nn.Module):
         x = self.fc1(x)
         x = self.softmax(x)
         return x
+
+    
+
+    def generate_tree(self,x_in, attention_threshold = 0.5):
+        list_filter_words =["[SEP]", "b", "'"]
+        x_in = self.tokenizer(x_in, return_tensors="pt", padding=self.padding, max_length = 256, truncation = True)
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        x_in = x_in.to(device)
+        def build_tree_recursive(node,attention_maps, position):
+            token,layer = position
+            if layer < attention_maps.shape[1]:    
+                for second_token, bin in enumerate(attention_maps[token,layer]):
+                    if bin:
+                        name = self.tokenizer.decode([x_in["input_ids"][0][second_token]])
+                        if not name in list_filter_words:
+                            build_tree_recursive(node.add_child(name = name), attention_maps, (second_token,layer+1))
+                return node
+        x = self.model(**x_in,output_attentions= True,output_hidden_states = False)  
+        x  = torch.stack(list(x.attentions), dim=0)
+        print(x.shape)
+        attentions = x[:,0]
+        attention_maps = torch.sum(attentions > attention_threshold, dim = 1) >= 1 #sum over heads
+        print(attention_maps.shape)
+        attention_maps = torch.permute(attention_maps, (1,0,2))
+        print(attention_maps.shape)
+        main_tree = Tree()
+        for i in range(attention_maps.shape[0]):
+            build_tree_recursive(main_tree.add_child(name = self.tokenizer.decode(x_in["input_ids"][0][i])),attention_maps, (i, 0) )
+        # for i,attention in enumerate(x.attentions):
+        #     attention_bin = torch.sum(attention > attention_threshold, dim = 1) >= 1 
+        #     print(attention_bin.shape)
+        #     for a,bin in enumerate(attention_bin):
+        #         print(bin)
+        #         if bin:
+        #             treelist[i+1].append(treelist[i][a].add_child(x_in["input_ids"][a]))
+        ts = TreeStyle()
+        ts.show_leaf_name = False
+        def my_layout(node):
+                F = TextFace(node.name, tight_text=True)
+                add_face_to_node(F, node, column=0, position="branch-right")
+        ts.layout_fn = my_layout
+        #ts.show_
+        main_tree.show(tree_style=ts)
+        return main_tree
+
+
+
+
     
     def analyze(self,attentions, x_in):
      #   start = time.time()
