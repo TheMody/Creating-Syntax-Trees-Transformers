@@ -18,6 +18,7 @@ import time
 from data import load_data, SimpleDataset, load_wiki
 from torch.utils.data import DataLoader
 from plot import plot_TSNE_clustering
+from torch_geometric.data import Data
 # Fixing seed for reproducibility
 SEED = 999
 random.seed(SEED)
@@ -33,7 +34,7 @@ eval_ds = [ "rtesmall", "qqpsmall","qqp", "rte"]
 def calculate_word_freq(dataset, tokenizer):
     batch_size = 32
     vocab_size = 30500
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = torch.device('cuda' if torch.cuda.is_available) else 'cpu')
     interpretcount = torch.zeros(vocab_size).to(device)
     for i in range(math.ceil(len(dataset) / batch_size)):
                 ul = min((i+1) * batch_size, len(dataset))
@@ -43,6 +44,26 @@ def calculate_word_freq(dataset, tokenizer):
                 interpretcount.put_(x_ids, torch.ones(x_ids.shape, device = device) ,accumulate=True)
     return interpretcount
 
+def tree_to_graph(tree):
+    def recursiv_tree_to_graph(tree,graph):
+       # print(tree)
+        wordpos,layer = tree.name 
+        print("tree",tree.name)
+        posorg = wordpos *12 + layer
+        for leaf in tree.get_children():
+            print("leaf",leaf.name)
+            wordpos,layer = leaf.name 
+            pos = wordpos *12 + layer
+           # if not pos in graph:
+            graph[0].append(posorg)
+            graph[1].append(pos)
+            if not leaf.is_leaf():
+              graph = recursiv_tree_to_graph(leaf,graph)
+        return graph
+    graph = ([],[])
+    for child in tree.get_children():
+        graph = recursiv_tree_to_graph(child,graph)
+    return graph
 
 def train(args, config):
 
@@ -68,32 +89,38 @@ def train(args, config):
     model = model.to(device)
     X_train, X_val, X_test, Y_train, Y_val, Y_test = load_data(name=dataset)
 
-    model.generate_tree([X_train[2]])
-    # print("analyzing", dataset)
+    edge_index = []
+    for example in X_train:
+        tree = model.generate_tree([example])
+        graph = tree_to_graph(tree)
+        edge_index.append(torch.tensor([graph[0], graph[1]], dtype=torch.long))
+       # print("analyzing", dataset)
+    
+    data = Data(x=x, y=y, edge_index=edge_index)
     # torch.save(calculate_word_freq(X_train, model.tokenizer), config["DEFAULT"]["directory"]+"/baseword_freq.pt")
 
 
-    model.analy = True
-    embeded_wiki = model.embed(X_train)
-   # print(embeded_wiki)
-    torch.save(model.interpretcount, config["DEFAULT"]["directory"]+"/pretrained.pt")
-   # print(model.interpretcount)
-    model.reset()
+#     model.analy = True
+#     embeded_wiki = model.embed(X_train)
+#    # print(embeded_wiki)
+#     torch.save(model.interpretcount, config["DEFAULT"]["directory"]+"/pretrained.pt")
+#    # print(model.interpretcount)
+#     model.reset()
 #    print("loading dataset")
     
 
 
-    print("training model on first dataset", dataset)
-    model.analy = False
-    model.fit(X_train, Y_train, X_val= X_val,Y_val= Y_val,  epochs=max_epochs)
-    accuracy = float(model.evaluate(X_val,Y_val).cpu().numpy())
+    # print("training model on first dataset", dataset)
+    # model.analy = False
+    # model.fit(X_train, Y_train, X_val= X_val,Y_val= Y_val,  epochs=max_epochs)
+    # accuracy = float(model.evaluate(X_val,Y_val).cpu().numpy())
 
-    model.analy = True
-    embeded_task = model.embed(X_train)
-    torch.save(model.interpretcount, config["DEFAULT"]["directory"]+"/afterfine.pt")
-    model.reset()
-    print("acuraccy on first ds:", accuracy)
-    torch.cuda.empty_cache()
+    # model.analy = True
+    # embeded_task = model.embed(X_train)
+    # torch.save(model.interpretcount, config["DEFAULT"]["directory"]+"/afterfine.pt")
+    # model.reset()
+    # print("acuraccy on first ds:", accuracy)
+    # torch.cuda.empty_cache()
     #   print("loading dataset")
     # X_train, X_val2, _, Y_train, Y_val2, _ = load_data(name=dataset2)
     # print("training model  on second ds", dataset2)

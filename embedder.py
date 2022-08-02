@@ -161,7 +161,7 @@ class NLP_embedder(nn.Module):
 
     
 
-    def generate_tree(self,x_in, attention_threshold = 0.5):
+    def generate_tree(self,x_in, attention_threshold = 0.5, vis =False):
         list_filter_words =["[SEP]", "b", "'"]
         x_in = self.tokenizer(x_in, return_tensors="pt", padding=self.padding, max_length = 256, truncation = True)
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -171,8 +171,10 @@ class NLP_embedder(nn.Module):
             if layer < attention_maps.shape[1]:    
                 for second_token, bin in enumerate(attention_maps[token,layer]):
                     if bin:
-                        name = self.tokenizer.decode([x_in["input_ids"][0][second_token]])
-                        if not name in list_filter_words:
+                        filtername = self.tokenizer.decode([x_in["input_ids"][0][second_token]])
+                     #   name = str(second_token) + "," + str(layer+1)
+                        name = (second_token,layer+1)
+                        if not filtername in list_filter_words:
                             build_tree_recursive(node.add_child(name = name), attention_maps, (second_token,layer+1))
                 return node
         x = self.model(**x_in,output_attentions= True,output_hidden_states = False)  
@@ -185,7 +187,9 @@ class NLP_embedder(nn.Module):
         print(attention_maps.shape)
         main_tree = Tree()
         for i in range(attention_maps.shape[0]):
-            build_tree_recursive(main_tree.add_child(name = self.tokenizer.decode(x_in["input_ids"][0][i])),attention_maps, (i, 0) )
+           # build_tree_recursive(main_tree.add_child(name = str(i) + ",0"),attention_maps, (i, 0) )
+            build_tree_recursive(main_tree.add_child(name = (i,0)),attention_maps, (i, 0) )
+            #build_tree_recursive(main_tree.add_child(name = self.tokenizer.decode(x_in["input_ids"][0][i])),attention_maps, (i, 0) )
         # for i,attention in enumerate(x.attentions):
         #     attention_bin = torch.sum(attention > attention_threshold, dim = 1) >= 1 
         #     print(attention_bin.shape)
@@ -193,14 +197,15 @@ class NLP_embedder(nn.Module):
         #         print(bin)
         #         if bin:
         #             treelist[i+1].append(treelist[i][a].add_child(x_in["input_ids"][a]))
-        ts = TreeStyle()
-        ts.show_leaf_name = False
-        def my_layout(node):
-                F = TextFace(node.name, tight_text=True)
-                add_face_to_node(F, node, column=0, position="branch-right")
-        ts.layout_fn = my_layout
-        #ts.show_
-        main_tree.show(tree_style=ts)
+        if vis:
+            ts = TreeStyle()
+            ts.show_leaf_name = False
+            def my_layout(node):
+                    F = TextFace(node.name, tight_text=True)
+                    add_face_to_node(F, node, column=0, position="branch-right")
+            ts.layout_fn = my_layout
+            #ts.show_
+            main_tree.show(tree_style=ts)
         return main_tree
 
 
