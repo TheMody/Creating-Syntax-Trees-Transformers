@@ -179,12 +179,12 @@ class NLP_embedder(nn.Module):
                 return node
         x = self.model(**x_in,output_attentions= True,output_hidden_states = False)  
         x  = torch.stack(list(x.attentions), dim=0)
-        print(x.shape)
+      #  print(x.shape)
         attentions = x[:,0]
         attention_maps = torch.sum(attentions > attention_threshold, dim = 1) >= 1 #sum over heads
-        print(attention_maps.shape)
+      #  print(attention_maps.shape)
         attention_maps = torch.permute(attention_maps, (1,0,2))
-        print(attention_maps.shape)
+      #  print(attention_maps.shape)
         main_tree = Tree()
         for i in range(attention_maps.shape[0]):
            # build_tree_recursive(main_tree.add_child(name = str(i) + ",0"),attention_maps, (i, 0) )
