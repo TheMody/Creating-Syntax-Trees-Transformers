@@ -28,16 +28,17 @@ class GNNet(torch.nn.Module):
           nn.Linear(256, 256),
           nn.ReLU(),
         ))
-        self.lin1 = torch.nn.Linear(256, 128)
-        self.lin2 = torch.nn.Linear(128, 64)
+        self.lin1 = torch.nn.Linear(512, 256)
+        self.lin2 = torch.nn.Linear(256, 64)
         self.lin3 = torch.nn.Linear(64, 1)
-        self.bn1 = torch.nn.BatchNorm1d(128)
+        self.bn1 = torch.nn.BatchNorm1d(256)
         self.bn2 = torch.nn.BatchNorm1d(64)
         self.act1 = torch.nn.ReLU()
         self.act2 = torch.nn.ReLU()        
   
     def forward(self, data):
-        x, edge_index , batch = data.x, data.edge_index ,data.batch  
+        x, edge_index , batch = data.x[0], data.edge_index[0] ,data.batch  
+       # print(batch.shape)
         x = self.conv1(x, edge_index)
         x = self.conv2(x, edge_index)
         x = self.conv3(x, edge_index)

@@ -16,7 +16,7 @@ from sklearn.model_selection import cross_val_score
 from sklearn.cluster import KMeans
 import time
 from data import load_data, SimpleDataset, load_wiki
-from torch.utils.data import DataLoader
+from torch_geometric.loader import DataLoader
 from plot import plot_TSNE_clustering
 from torch_geometric.data import Data
 from sklearn.preprocessing import OneHotEncoder
@@ -87,9 +87,10 @@ def train(args, config):
         y_pred = model.predict(X_train)
         y  = (Y_train == y_pred)
 
-        edge_index = []
-        x =[]
-        for example in X_train:
+        data_list = []
+        for a,example in enumerate(X_train):
+            edge_index = []
+            x =[]
             tree = model.generate_tree([example])
             graph = tree_to_graph(tree)
             edge_index.append(torch.tensor([graph[0], graph[1]], dtype=torch.long))
@@ -98,39 +99,46 @@ def train(args, config):
             for i in range(x_in["input_ids"].shape[1] * 12):
                 xvalues[i,int(i / 12)] = 1
             x.append(xvalues)
-        data = Data(x=x, y=y, edge_index=edge_index)
-        torch.save(data, "sst2graphds.dt")
+            data = Data(x=x, y=y[a], edge_index=edge_index)
+            data.num_nodes = x_in["input_ids"].shape[1] * 12
+            data_list.append(data)
+        torch.save(data_list, "sst2graphds.dt")
 
-        return data
+        return data_list
 
     if not load:
-        data = create_dataset(dataset)
+        data_list = create_dataset(dataset)
     else:
-        data = torch.load("sst2graphds.dt")
+        data_list = torch.load("sst2graphds.dt")
+
+  #  print(data_list)
     from Graph_network import GNNet
 
-    def train():
+    def train_GNN(model, train_loader):
         model.train()
+        optimizer = torch.optim.Adam(model.parameters(), lr=0.005)
+        crit = torch.nn.BCELoss()
 
         loss_all = 0
         for data in train_loader:
             data = data.to(device)
             optimizer.zero_grad()
             output = model(data)
-            label = data.y.to(device)
+            label = data.y.type(torch.FloatTensor).to(device)
             loss = crit(output, label)
             loss.backward()
             loss_all += data.num_graphs * loss.item()
+           # print("loss on batch",loss.item())
             optimizer.step()
-        return loss_all / len(data)
+        return loss_all / len(data_list)
         
     device = torch.device('cuda')
     model = GNNet().to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.005)
-    crit = torch.nn.BCELoss()
-    train_loader = DataLoader(data, batch_size=batch_size)
+
+    train_loader = DataLoader(data_list, batch_size=batch_size) 
     for epoch in range(3):
-        train()
+        loss = train_GNN(model, train_loader)
+        print("average loss", loss)
 
 
         
